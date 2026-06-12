@@ -1,5 +1,5 @@
 // pages/api/generate.js
-// Vercel Serverless Function — calls Claude to generate the CV
+// Vercel Serverless Function — calls Google Gemini to generate the CV
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -7,35 +7,35 @@ export default async function handler(req, res) {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: "Server misconfigured: missing ANTHROPIC_API_KEY" });
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ error: "Server misconfigured: missing GEMINI_API_KEY" });
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+    const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
-        max_tokens: 1500,
-        messages: [{ role: "user", content: prompt }],
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2000,
+        },
       }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("Anthropic error:", JSON.stringify(data));
+      console.error("Gemini error:", JSON.stringify(data));
       return res.status(500).json({ error: data?.error?.message || "AI generation failed" });
     }
 
-    const raw = (data.content || []).map(b => b.text || "").join("");
+    const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
 
-    // Try to extract the JSON object from the response robustly
+    // Extract JSON object robustly
     let clean = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
     const firstBrace = clean.indexOf("{");
     const lastBrace = clean.lastIndexOf("}");
