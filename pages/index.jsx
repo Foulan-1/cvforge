@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const T = {
   bg: "#0a0a0a", bgCard: "#111111", bgInput: "#161616",
@@ -53,6 +53,100 @@ export default function CVBuilder() {
   const addExp = () => setForm(p => ({ ...p, experience: [...p.experience, { company:"",role:"",duration:"",bullets:"" }] }));
   const rmExp  = (i) => setForm(p => ({ ...p, experience: p.experience.filter((_,j)=>j!==i) }));
 
+  // ── Auto-unlock Pro on return from PayPal, and persist across visits ───────
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const returnedEmail = params.get("email");
+      if (params.get("pro") === "true" && returnedEmail) {
+        localStorage.setItem("cvforge_email", returnedEmail);
+        upd("email", returnedEmail);
+        window.history.replaceState({}, "", window.location.pathname);
+        checkProStatus(returnedEmail);
+      } else {
+        const savedEmail = localStorage.getItem("cvforge_email");
+        if (savedEmail) {
+          upd("email", savedEmail);
+          checkProStatus(savedEmail);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
+
+  const checkProStatus = async (email) => {
+    try {
+      const res = await fetch(`/api/check-pro?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      if (data.isPro) setIsPro(true);
+    } catch (e) { /* ignore */ }
+  };
+
+  // ── Real PDF download (loads libraries from CDN on demand) ────────────────
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const loadScript = (src) => new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.body.appendChild(s);
+  });
+
+  const downloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      if (!window.html2canvas) {
+        await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+      }
+      if (!window.jspdf) {
+        await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+      }
+
+      const node = document.getElementById("cv-doc");
+      const canvas = await window.html2canvas(node, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      if (imgHeight <= pageHeight) {
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      } else {
+        // Split across multiple pages if the CV is long
+        let heightLeft = imgHeight;
+        let position = 0;
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+      }
+
+      const fileName = `${(cvOutput?.name || "CV").replace(/\s+/g, "_")}_CVForge.pdf`;
+      pdf.save(fileName);
+    } catch (e) {
+      console.error("PDF generation error:", e);
+      alert("Couldn't generate PDF. Please try again.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+
+
   // ── Generate CV via Claude ─────────────────────────────────────────────────
   const generateCV = async () => {
     setLoading(true); setError(null);
@@ -96,11 +190,16 @@ Return ONLY valid JSON (no markdown fences):
     finally    { setLoading(false); }
   };
 
-  // ── Stripe Checkout ────────────────────────────────────────────────────────
+  // ── PayPal Checkout ────────────────────────────────────────────────────────
   const handleUpgrade = async () => {
+    if (!form.email) {
+      alert("Please enter your email first (in Step 2 — Personal Information) so we can verify your payment and unlock Pro.");
+      return;
+    }
     setPayLoading(true);
     try {
-      const res  = await fetch("/api/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ email: form.email || undefined }) });
+      localStorage.setItem("cvforge_email", form.email);
+      const res  = await fetch("/api/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ email: form.email }) });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
       else throw new Error(data.error);
@@ -455,7 +554,7 @@ Return ONLY valid JSON (no markdown fences):
                     <div style={{fontWeight:700,fontSize:15}}>Download as PDF</div>
                     <div style={{fontSize:12,color:T.textDim,marginTop:2}}>Clean, print-ready · No watermark</div>
                   </div>
-                  <Btn onClick={()=>window.print()}>⬇ Download PDF</Btn>
+                  <Btn onClick={downloadPdf} disabled={pdfLoading}>{pdfLoading ? "Generating…" : "⬇ Download PDF"}</Btn>
                 </div>
               ) : (
                 <div style={{marginTop:14,background:"linear-gradient(135deg,#111 0%,rgba(57,255,20,0.06) 100%)",border:`1px solid ${T.borderGreen}`,borderRadius:12,padding:"22px 24px"}}>
@@ -530,3 +629,4 @@ Return ONLY valid JSON (no markdown fences):
     </div>
   );
 }
+
