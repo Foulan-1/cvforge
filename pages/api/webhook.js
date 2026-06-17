@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     // 1) Verify this IPN message is genuinely from PayPal
     const verifyBody = "cmd=_notify-validate&" + rawBody;
-    const verifyRes = await fetch("https://ipnpb.paypal.com/cgi-bin/webscr", {
+    const verifyRes = await fetch("https://ipnpb.sandbox.paypal.com/cgi-bin/webscr", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: verifyBody,
