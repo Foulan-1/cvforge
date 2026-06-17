@@ -26,18 +26,30 @@ export default async function handler(req, res) {
     const rawBody = (await buffer(req)).toString("utf-8");
 
     // 1) Verify this IPN message is genuinely from PayPal
+    //    Sandbox and Live use different verification endpoints, and we can't
+    //    know in advance which one sent this — so try Live first, and if
+    //    that fails to verify, retry against the Sandbox endpoint.
     const verifyBody = "cmd=_notify-validate&" + rawBody;
-    const verifyRes = await fetch("https://ipnpb.sandbox.paypal.com/cgi-bin/webscr", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: verifyBody,
-    });
-    const verifyText = await verifyRes.text();
 
-    if (verifyText.trim() !== "VERIFIED") {
-      console.warn("IPN not verified:", verifyText);
+    async function verifyWith(endpoint) {
+      const r = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: verifyBody,
+      });
+      return (await r.text()).trim();
+    }
+
+    let verifyText = await verifyWith("https://ipnpb.paypal.com/cgi-bin/webscr");
+    if (verifyText !== "VERIFIED") {
+      verifyText = await verifyWith("https://ipnpb.sandbox.paypal.com/cgi-bin/webscr");
+    }
+
+    if (verifyText !== "VERIFIED") {
+      console.warn("IPN not verified (tried live + sandbox):", verifyText);
       return res.status(200).send("ignored");
     }
+    console.log("✅ IPN verified successfully");
 
     // 2) Parse the IPN fields
     const params = new URLSearchParams(rawBody);
