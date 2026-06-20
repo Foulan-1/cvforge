@@ -1,38 +1,20 @@
 // pages/api/checkout.js
-// Creates a PayPal payment link for the $5 Pro upgrade
+// Redirects user to Gumroad product page for payment.
+// Gumroad handles all payment processing and pays out to your PayPal personal account.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { email } = req.body || {};
-  const AMOUNT = "5.00";
-  const ITEM_NAME = "CVForge Pro - AI CV Generator";
+
+  // Gumroad product URL — after payment, Gumroad redirects back with ?pro=true
+  const GUMROAD_URL = "https://boulghite.gumroad.com/l/uycsqa";
+
+  // Pass email and return URL as Gumroad URL params so we can auto-unlock Pro on return
   const origin = req.headers.origin || process.env.NEXT_PUBLIC_URL || "https://cvforger-sh.vercel.app";
-
-  // Temporary testing toggle: set PAYPAL_SANDBOX=true in Vercel env vars to
-  // route payments through PayPal Sandbox instead of Live. Remove or set to
-  // "false" before real launch.
-  const isSandbox = process.env.PAYPAL_SANDBOX === "true";
-  const paypalDomain = isSandbox ? "https://www.sandbox.paypal.com" : "https://www.paypal.com";
-
-  // In sandbox mode, payments must go to YOUR sandbox BUSINESS account email
-  // (not your real PayPal email) — set PAYPAL_SANDBOX_BUSINESS_EMAIL in Vercel.
-  const PAYPAL_EMAIL = isSandbox
-    ? (process.env.PAYPAL_SANDBOX_BUSINESS_EMAIL || "")
-    : "johncoolsaints1999@gmail.com";
-
-  if (isSandbox && !PAYPAL_EMAIL) {
-    return res.status(500).json({ error: "Missing PAYPAL_SANDBOX_BUSINESS_EMAIL env var for sandbox testing" });
-  }
-
   const returnUrl = `${origin}/?pro=true${email ? `&email=${encodeURIComponent(email)}` : ""}`;
-  const cancelUrl = `${origin}/?canceled=true`;
 
-  let paypalUrl = `${paypalDomain}/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(PAYPAL_EMAIL)}&item_name=${encodeURIComponent(ITEM_NAME)}&amount=${AMOUNT}&currency_code=USD&return=${encodeURIComponent(returnUrl)}&cancel_return=${encodeURIComponent(cancelUrl)}`;
+  const finalUrl = `${GUMROAD_URL}?wanted=true&email=${encodeURIComponent(email || "")}&referrer=${encodeURIComponent(returnUrl)}`;
 
-  if (email) {
-    paypalUrl += `&custom=${encodeURIComponent(email)}`;
-  }
-
-  return res.status(200).json({ url: paypalUrl });
+  return res.status(200).json({ url: finalUrl });
 }
