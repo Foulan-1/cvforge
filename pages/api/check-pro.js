@@ -9,8 +9,12 @@ export default async function handler(req, res) {
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    return res.status(500).json({ error: "Server misconfigured" });
-  }
+    return res.status(500).json({
+        error: "Server misconfigured",
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseKey
+    });
+}
 
   try {
     const url = `${supabaseUrl}/rest/v1/pro_users?email=eq.${encodeURIComponent(email.toLowerCase())}&select=is_pro`;
