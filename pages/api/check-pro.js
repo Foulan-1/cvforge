@@ -25,8 +25,11 @@ export default async function handler(req, res) {
       },
     });
     const data = await r.json();
-    const isPro = Array.isArray(data) && data.length > 0 && data[0].is_pro === true;
-    return res.status(200).json({ isPro });
+    return res.status(200).json({ 
+    debug: true,
+    status: r.status,
+    data: data
+});
   } catch (err) {
     console.error("check-pro error:", err);
     return res.status(500).json({ error: "Failed to check status" });
