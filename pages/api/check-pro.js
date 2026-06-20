@@ -1,4 +1,4 @@
-here// pages/api/check-pro.js
+// pages/api/check-pro.js
 // Checks Supabase "pro_users" table to see if a given email has paid for Pro
 
 export default async function handler(req, res) {
