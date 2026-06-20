@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const { email } = req.body || {};
 
   // Gumroad product URL — after payment, Gumroad redirects back with ?pro=true
-  const GUMROAD_URL = "https://boulghite.gumroad.com/l/uycsqa";
+  const GUMROAD_URL = "https://foulan.gumroad.com/l/uycsqa";
 
   // Pass email and return URL as Gumroad URL params so we can auto-unlock Pro on return
   const origin = req.headers.origin || process.env.NEXT_PUBLIC_URL || "https://cvforger-sh.vercel.app";
