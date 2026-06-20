@@ -53,16 +53,23 @@ export default function CVBuilder() {
   const addExp = () => setForm(p => ({ ...p, experience: [...p.experience, { company:"",role:"",duration:"",bullets:"" }] }));
   const rmExp  = (i) => setForm(p => ({ ...p, experience: p.experience.filter((_,j)=>j!==i) }));
 
-  // ── Auto-unlock Pro on return from PayPal, and persist across visits ───────
+  // ── Auto-unlock Pro on return from Gumroad, and persist across visits ───────
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const returnedEmail = params.get("email");
-      if (params.get("pro") === "true" && returnedEmail) {
-        localStorage.setItem("cvforge_email", returnedEmail);
-        upd("email", returnedEmail);
+      if (params.get("pro") === "true") {
+        // Unlock Pro immediately on return from Gumroad
+        setIsPro(true);
+        setShowPaywall(false);
         window.history.replaceState({}, "", window.location.pathname);
-        checkProStatus(returnedEmail);
+
+        if (returnedEmail) {
+          localStorage.setItem("cvforge_email", returnedEmail);
+          upd("email", returnedEmail);
+          // Save to Supabase in background for record-keeping
+          saveProToSupabase(returnedEmail);
+        }
       } else {
         const savedEmail = localStorage.getItem("cvforge_email");
         if (savedEmail) {
@@ -72,6 +79,16 @@ export default function CVBuilder() {
       }
     } catch (e) { /* ignore */ }
   }, []);
+
+  const saveProToSupabase = async (email) => {
+    try {
+      await fetch("/api/save-pro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch (e) { /* ignore — non-critical */ }
+  };
 
   const checkProStatus = async (email) => {
     try {
