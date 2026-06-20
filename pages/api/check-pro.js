@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   const email = (req.method === "POST" ? req.body?.email : req.query?.email);
   if (!email) return res.status(400).json({ error: "Missing email" });
 
-  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseUrl ="https://doqgbvkxplhqcbjjcyhb.supabase.co";
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
